@@ -1,0 +1,33 @@
+.field {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.field__label {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.field__input,
+.field__select {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-small);
+    color: var(--text-primary);
+    background: var(--bg-card);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.field__input:focus,
+.field__select:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.field__error {
+    color: var(--error);
+    font-size: 12px;
+}

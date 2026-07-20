@@ -1,0 +1,44 @@
+.button {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-6);
+    border: 0;
+    border-radius: var(--radius-small);
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: background-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.button--primary {
+    color: var(--bg-card);
+    background: var(--primary);
+}
+
+.button--primary:hover:not(:disabled) {
+    background: var(--primary-hover);
+}
+
+.button--secondary {
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+}
+
+.button--danger {
+    color: var(--bg-card);
+    background: var(--error);
+}
+
+.button:disabled,
+.button[aria-busy='true'] {
+    cursor: not-allowed;
+    opacity: 0.56;
+}
+
+.button--block {
+    width: 100%;
+}

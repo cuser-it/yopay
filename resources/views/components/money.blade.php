@@ -1,0 +1,1 @@
+<span>{{ $sign }}¥{{ $formatted }}</span>
