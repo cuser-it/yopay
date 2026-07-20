@@ -97,7 +97,7 @@ final class GatewayPaymentInitializationLeaseTest extends TestCase
         $this->expectException(PaymentMethodConflictException::class);
 
         try {
-            app(GatewayPaymentInitializationService::class)->initialize($order, PaymentMethod::WxPay);
+            app(GatewayPaymentInitializationService::class)->initialize($order, PaymentMethod::WeChatPay);
         } finally {
             Http::assertNothingSent();
         }
