@@ -55,7 +55,7 @@ final class EasyPayRsaKeyTest extends TestCase
     {
         $privateKey = $this->pemBody($this->fixture('easypay-rsa-private-pkcs1.pem'));
         $publicKey = $this->pemBody($this->fixture('easypay-rsa-public.pem'));
-        $validator = new EasyPayConfigurationValidator();
+        $validator = new EasyPayConfigurationValidator;
 
         $validator->validate([
             'base_url' => 'https://pay.example.com',
@@ -79,14 +79,19 @@ final class EasyPayRsaKeyTest extends TestCase
     {
         $privateKey = EasyPayRsaKey::privateKey($this->fixture('easypay-rsa-private-pkcs8.pem'));
         $encryptedPrivateKey = '';
-        $exported = openssl_pkey_export($privateKey, $encryptedPrivateKey, 'test-passphrase');
+        $exported = openssl_pkey_export(
+            $privateKey,
+            $encryptedPrivateKey,
+            'test-passphrase',
+            $this->opensslOptions(),
+        );
 
         $this->assertTrue($exported);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('私钥已加密');
 
-        (new EasyPayConfigurationValidator())->validate([
+        (new EasyPayConfigurationValidator)->validate([
             'base_url' => 'https://pay.example.com',
             'merchant_private_key' => $encryptedPrivateKey,
             'platform_public_key' => $this->fixture('easypay-rsa-public.pem'),
@@ -96,18 +101,19 @@ final class EasyPayRsaKeyTest extends TestCase
     public function test_installer_rejects_non_rsa_private_key_with_actionable_message(): void
     {
         $ecKey = openssl_pkey_new([
+            ...$this->opensslOptions(),
             'private_key_type' => OPENSSL_KEYTYPE_EC,
             'curve_name' => 'prime256v1',
         ]);
         $ecPrivateKey = '';
 
         $this->assertInstanceOf(OpenSSLAsymmetricKey::class, $ecKey);
-        $this->assertTrue(openssl_pkey_export($ecKey, $ecPrivateKey));
+        $this->assertTrue(openssl_pkey_export($ecKey, $ecPrivateKey, null, $this->opensslOptions()));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('必须使用 RSA 密钥');
 
-        (new EasyPayConfigurationValidator())->validate([
+        (new EasyPayConfigurationValidator)->validate([
             'base_url' => 'https://pay.example.com',
             'merchant_private_key' => $ecPrivateKey,
             'platform_public_key' => $this->fixture('easypay-rsa-public.pem'),
@@ -126,5 +132,13 @@ final class EasyPayRsaKeyTest extends TestCase
     private function pemBody(string $pem): string
     {
         return preg_replace('/-----BEGIN [^-]+-----|-----END [^-]+-----|\s+/', '', $pem) ?? '';
+    }
+
+    /**
+     * @return array{config: string}
+     */
+    private function opensslOptions(): array
+    {
+        return ['config' => base_path('tests/Fixtures/openssl.cnf')];
     }
 }
