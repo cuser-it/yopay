@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { checkoutApp } from '../resources/js/checkout.js';
+import { checkoutApp, isValidPositiveAmount } from '../resources/js/checkout.js';
 
 const terminalOrder = {
     status: 'paid',
@@ -100,6 +100,13 @@ function prepareApp(config) {
 
     return app;
 }
+
+test('public checkout accepts one cent but rejects zero amounts', () => {
+    assert.equal(isValidPositiveAmount('0.01'), true);
+    assert.equal(isValidPositiveAmount('0.1'), true);
+    assert.equal(isValidPositiveAmount('0'), false);
+    assert.equal(isValidPositiveAmount('0.00'), false);
+});
 
 test('root checkout discards a terminal order recovered only from local storage', async () => {
     const browser = prepareBrowser({ storedToken: 'stored-paid-token' });

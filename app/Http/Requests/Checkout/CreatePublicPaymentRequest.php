@@ -23,7 +23,7 @@ final class CreatePublicPaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount' => ['required', 'string', 'regex:/^[1-9]\d{0,6}(?:\.\d{1,2})?$/'],
+            'amount' => ['required', 'string', 'regex:/^(?:0|[1-9]\d{0,6})(?:\.\d{1,2})?$/'],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
             'idempotency_key' => ['required', 'string', 'min:16', 'max:128'],
         ];

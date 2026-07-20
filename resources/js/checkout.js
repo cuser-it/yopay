@@ -10,6 +10,19 @@ function randomKey() {
     return crypto.randomUUID?.() ?? Array.from(crypto.getRandomValues(new Uint8Array(24)), (value) => value.toString(16).padStart(2, '0')).join('');
 }
 
+export function isValidPositiveAmount(amount) {
+    const match = /^(0|[1-9]\d{0,6})(?:\.(\d{1,2}))?$/.exec(amount);
+
+    if (! match) {
+        return false;
+    }
+
+    const wholeCents = Number.parseInt(match[1], 10) * 100;
+    const fractionalCents = Number.parseInt((match[2] ?? '').padEnd(2, '0') || '0', 10);
+
+    return wholeCents + fractionalCents > 0;
+}
+
 export function checkoutApp(config) {
     return {
         amount: '',
@@ -69,7 +82,7 @@ export function checkoutApp(config) {
             this.errorMessage = '';
             this.validationError = '';
 
-            if (! /^[1-9]\d{0,6}(?:\.\d{1,2})?$/.test(this.amount)) {
+            if (! isValidPositiveAmount(this.amount)) {
                 this.validationError = '请输入大于 0 且最多保留两位小数的金额。';
                 return;
             }
