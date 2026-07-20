@@ -49,4 +49,27 @@ jobs:
         run: pnpm run test:frontend
 
       - name: Run application tests
-        run: php artisan test
+        shell: bash
+        run: |
+          set +e
+          php artisan test 2>&1 | tee application-tests.log
+          test_status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$test_status" -ne 0 ]; then
+            {
+              echo '## Application test failure'
+              echo
+              echo '```text'
+              tail -n 120 application-tests.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            test_output=$(tail -n 80 application-tests.log)
+            test_output=${test_output//'%'/'%25'}
+            test_output=${test_output//$'\r'/'%0D'}
+            test_output=${test_output//$'\n'/'%0A'}
+            echo "::error title=Application tests failed::$test_output"
+          fi
+
+          exit "$test_status"
