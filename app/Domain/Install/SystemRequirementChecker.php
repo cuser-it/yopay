@@ -46,11 +46,6 @@ final class SystemRequirementChecker
             'passed' => ! is_file(base_path('bootstrap/cache/config.php')),
             'detail' => '如失败，请先执行 php artisan config:clear',
         ];
-        $checks[] = [
-            'label' => 'APP_KEY 尚未生成',
-            'passed' => ! $this->environmentHasApplicationKey(),
-            'detail' => '检测到已有 APP_KEY 时安装器会拒绝覆盖',
-        ];
 
         return $checks;
     }
@@ -72,31 +67,6 @@ final class SystemRequirementChecker
     private function isWritablePath(string $path): bool
     {
         return file_exists($path) && is_writable($path);
-    }
-
-    private function environmentHasApplicationKey(): bool
-    {
-        $runtimeKey = env('APP_KEY');
-
-        if (is_string($runtimeKey) && trim($runtimeKey) !== '') {
-            return true;
-        }
-
-        $path = base_path('.env');
-
-        if (! is_file($path)) {
-            return false;
-        }
-
-        $contents = (string) file_get_contents($path);
-
-        if (preg_match('/^[ \t]*APP_KEY[ \t]*=[ \t]*(.*)$/m', $contents, $matches) !== 1) {
-            return false;
-        }
-
-        $value = trim($matches[1]);
-
-        return $value !== '' && $value !== '""' && $value !== "''";
     }
 
     private function documentRootIsPublic(): bool

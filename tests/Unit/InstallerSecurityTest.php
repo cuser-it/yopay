@@ -8,6 +8,7 @@ use App\Domain\Install\EnvironmentFileWriter;
 use App\Domain\Install\InstallAccessService;
 use App\Domain\Install\InstallSessionStore;
 use App\Domain\Install\InstallState;
+use App\Domain\Install\SystemRequirementChecker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
@@ -97,6 +98,13 @@ final class InstallerSecurityTest extends TestCase
             ->assertRedirect(route('install.requirements'))
             ->assertCookie(InstallAccessService::COOKIE_NAME);
         $this->assertFileExists($this->temporaryDirectory.'/installer-secret');
+    }
+
+    public function test_existing_application_key_is_not_an_installer_requirement(): void
+    {
+        $labels = array_column((new SystemRequirementChecker)->checks(), 'label');
+
+        $this->assertNotContains('APP_KEY 尚未生成', $labels);
     }
 
     public function test_environment_writer_updates_atomically_and_escapes_multiline_secrets(): void
