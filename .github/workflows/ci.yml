@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          php artisan test 2>&1 | tee application-tests.log
+          php artisan test --colors=never --log-junit application-tests.xml 2>&1 | tee application-tests.log
           test_status=${PIPESTATUS[0]}
           set -e
 
@@ -65,11 +65,33 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
 
-            test_output=$(tail -n 80 application-tests.log)
-            test_output=${test_output//'%'/'%25'}
-            test_output=${test_output//$'\r'/'%0D'}
-            test_output=${test_output//$'\n'/'%0A'}
-            echo "::error title=Application tests failed::$test_output"
+            python3 <<'PY'
+          import os
+          import xml.etree.ElementTree as ElementTree
+
+          report = ElementTree.parse('application-tests.xml')
+
+          for test_case in report.iter('testcase'):
+              failure = test_case.find('failure')
+              error = test_case.find('error')
+              problem = failure if failure is not None else error
+
+              if problem is None:
+                  continue
+
+              test_name = test_case.attrib.get('name', 'Unknown test')
+              class_name = test_case.attrib.get('class', 'Application tests')
+              details = '\n'.join(
+                  part for part in [
+                      problem.attrib.get('message', ''),
+                      problem.text or '',
+                  ] if part
+              )
+              details = details[-7000:]
+              details = details.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              title = f'{class_name}::{test_name}'.replace('%', '%25').replace('\r', '').replace('\n', '')
+              print(f'::error title={title}::{details}')
+          PY
           fi
 
           exit "$test_status"
