@@ -48,6 +48,35 @@ jobs:
         with:
           ref: ${{ steps.revision.outputs.sha }}
 
+      - name: Validate deployment configuration
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          missing=()
+
+          for variable in \
+            DEPLOY_HOST \
+            DEPLOY_PORT \
+            DEPLOY_USER \
+            DEPLOY_PATH \
+            PHP_CONTAINER \
+            PHP_CONTAINER_PATH \
+            DEPLOY_SSH_KEY \
+            DEPLOY_KNOWN_HOSTS
+          do
+            if [[ -z "${!variable:-}" ]]; then
+              missing+=("$variable")
+            fi
+          done
+
+          if [[ "${#missing[@]}" -gt 0 ]]; then
+            missing_list=$(IFS=', '; echo "${missing[*]}")
+            echo "::error title=Deployment configuration incomplete::Missing production environment secrets: $missing_list"
+            exit 1
+          fi
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -83,6 +112,10 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          if ! ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null; then
+            echo "::error title=Invalid deployment SSH key::DEPLOY_SSH_KEY is not a valid unencrypted private key."
+            exit 1
+          fi
 
       - name: Upload release
         run: |
