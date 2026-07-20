@@ -25,7 +25,7 @@ final class EnsureInstallerAccess
             $submittedToken = $request->input('_install_csrf');
 
             if (! is_string($submittedToken) || ! hash_equals($context['csrf'], $submittedToken)) {
-                abort(419, '安装会话已失效，请重新验证安装令牌。');
+                abort(419, '安装会话已失效，请刷新安装页面后重试。');
             }
         }
 

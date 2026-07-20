@@ -6,8 +6,6 @@ namespace App\Domain\Install;
 
 final class SystemRequirementChecker
 {
-    public function __construct(private readonly InstallState $state) {}
-
     /** @return list<array{label: string, passed: bool, detail: string}> */
     public function checks(): array
     {
@@ -52,11 +50,6 @@ final class SystemRequirementChecker
             'label' => 'APP_KEY 尚未生成',
             'passed' => ! $this->environmentHasApplicationKey(),
             'detail' => '检测到已有 APP_KEY 时安装器会拒绝覆盖',
-        ];
-        $checks[] = [
-            'label' => '私有安装令牌',
-            'passed' => $this->state->hasAccessToken(),
-            'detail' => '令牌仅保存在服务器私有目录或进程环境中',
         ];
 
         return $checks;

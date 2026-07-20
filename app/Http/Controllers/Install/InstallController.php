@@ -9,7 +9,6 @@ use App\Domain\Install\EasyPayConfigurationValidator;
 use App\Domain\Install\InstallAccessService;
 use App\Domain\Install\InstallationService;
 use App\Domain\Install\InstallSessionStore;
-use App\Domain\Install\InstallState;
 use App\Domain\Install\SystemRequirementChecker;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +22,6 @@ use Symfony\Component\HttpFoundation\Response;
 final class InstallController extends Controller
 {
     public function __construct(
-        private readonly InstallState $state,
         private readonly InstallAccessService $access,
         private readonly InstallSessionStore $sessions,
         private readonly SystemRequirementChecker $requirements,
@@ -32,41 +30,11 @@ final class InstallController extends Controller
         private readonly InstallationService $installer,
     ) {}
 
-    public function index(Request $request): RedirectResponse|View
+    public function index(Request $request): RedirectResponse
     {
         if ($this->access->accessContext($request) !== null) {
             return redirect()->route('install.requirements');
         }
-
-        return view('install.access', [
-            'tokenAvailable' => $this->state->hasAccessToken(),
-        ]);
-    }
-
-    public function authenticate(Request $request): RedirectResponse|Response
-    {
-        $clientIdentifier = (string) ($request->ip() ?? 'unknown');
-
-        if ($this->state->tooManyAuthenticationAttempts($clientIdentifier)) {
-            return response()->view('install.access', [
-                'tokenAvailable' => $this->state->hasAccessToken(),
-                'formErrors' => ['install_token' => ['验证失败次数过多，请十分钟后再试或在服务器终端轮换令牌。']],
-            ], 429);
-        }
-
-        $token = trim((string) $request->input('install_token', ''));
-
-        if (! $this->state->verifyAccessToken($token)) {
-            $this->state->recordAuthenticationFailure($clientIdentifier);
-            usleep(350000);
-
-            return response()->view('install.access', [
-                'tokenAvailable' => $this->state->hasAccessToken(),
-                'formErrors' => ['install_token' => ['安装令牌无效。']],
-            ], 422);
-        }
-
-        $this->state->clearAuthenticationFailures($clientIdentifier);
 
         return redirect()->route('install.requirements')->withCookie($this->access->issueCookie($request));
     }

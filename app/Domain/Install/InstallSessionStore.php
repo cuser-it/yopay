@@ -24,19 +24,19 @@ final class InstallSessionStore
             return [];
         }
 
-        $tokenHash = $this->state->accessTokenHash();
+        $secret = $this->state->installerSessionSecret();
         $iv = base64_decode((string) ($payload['iv'] ?? ''), true);
         $tag = base64_decode((string) ($payload['tag'] ?? ''), true);
         $ciphertext = base64_decode((string) ($payload['ciphertext'] ?? ''), true);
 
-        if ($tokenHash === null || $iv === false || $tag === false || $ciphertext === false) {
+        if ($iv === false || $tag === false || $ciphertext === false) {
             return [];
         }
 
         $plaintext = openssl_decrypt(
             $ciphertext,
             'aes-256-gcm',
-            $this->encryptionKey($tokenHash),
+            $this->encryptionKey($secret),
             OPENSSL_RAW_DATA,
             $iv,
             $tag,
@@ -54,11 +54,7 @@ final class InstallSessionStore
 
     public function write(string $sessionId, array $data): void
     {
-        $tokenHash = $this->state->accessTokenHash();
-
-        if ($tokenHash === null) {
-            throw new RuntimeException('The installation token is unavailable.');
-        }
+        $secret = $this->state->installerSessionSecret();
 
         if (! is_dir($this->state->privateDirectory()) && ! mkdir($this->state->privateDirectory(), 0700, true) && ! is_dir($this->state->privateDirectory())) {
             throw new RuntimeException('Unable to create the private installation directory.');
@@ -69,7 +65,7 @@ final class InstallSessionStore
         $ciphertext = openssl_encrypt(
             json_encode($data, JSON_THROW_ON_ERROR),
             'aes-256-gcm',
-            $this->encryptionKey($tokenHash),
+            $this->encryptionKey($secret),
             OPENSSL_RAW_DATA,
             $iv,
             $tag,
@@ -115,9 +111,9 @@ final class InstallSessionStore
         return $this->state->privateDirectory().DIRECTORY_SEPARATOR.'install-session-'.$sessionId.'.json';
     }
 
-    private function encryptionKey(string $tokenHash): string
+    private function encryptionKey(string $secret): string
     {
-        return hash('sha256', 'payment-installer-draft:'.$tokenHash, true);
+        return hash('sha256', 'payment-installer-draft:'.$secret, true);
     }
 
     private function replaceFile(string $temporaryPath, string $path): bool

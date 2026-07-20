@@ -75,7 +75,6 @@ final class InstallationService
 
             try {
                 $this->state->purgeTemporaryInstallerFiles();
-                $this->environment->update(['PAYMENT_INSTALL_TOKEN' => '']);
             } catch (\Throwable $cleanupException) {
                 Log::warning('Installation completed but temporary installer cleanup needs attention.', [
                     'exception' => $cleanupException::class,

@@ -1,18 +1,17 @@
 # 安装向导安全说明
 
-## 入口与令牌
+## 入口与安装会话
 
 - `/install` 只允许 HTTPS；仅服务器本机的 `localhost`、`127.0.0.1` 和 `::1` 可以使用 HTTP。
 - 公网安装时必须关闭 `APP_DEBUG`，Web 服务器根目录必须精确指向项目的 `public` 目录；否则环境检查或入口门禁会拒绝继续。
-- 安装前在服务器终端执行 `php artisan install:token`。命令只显示一次明文令牌，服务器私有目录只保存 SHA-256 摘要。
-- 令牌不会放进 URL。验证成功后使用 30 分钟有效、HttpOnly、SameSite=Strict 的 HMAC 签名 Cookie。
+- 首次访问 `/install` 时，服务器自动生成只保存在 `storage/app/private` 的临时安装密钥；该密钥不会显示、进入 URL 或发送到浏览器。
+- 安装会话使用 30 分钟有效、HttpOnly、SameSite=Strict 的 HMAC 签名 Cookie，Cookie 被篡改或过期后必须重新进入 `/install`。
 - 所有后续写请求还必须提交安装会话中的独立 CSRF 随机值，并通过同源校验。
-- 连续令牌验证失败会触发基于私有文件的限速；可在服务器终端使用 `php artisan install:token --rotate` 轮换。
 
 ## 密钥保护
 
 - 数据库密码、EasyPay RSA 密钥和管理员密码不会写入浏览器 Cookie、URL、成功页或安装摘要。
-- 分步填写的数据使用安装令牌派生的 AES-256-GCM 密钥加密后，暂存在 `storage/app/private`。
+- 分步填写的数据使用服务器临时安装密钥派生的 AES-256-GCM 密钥加密后，暂存在 `storage/app/private`。
 - `.env` 使用临时文件加原子重命名写入，并尽力设置为 `0600`。
 - 项目根目录不得作为站点根目录，避免 `.env`、日志、源码和私有安装状态被公网直接下载。
 - `APP_KEY` 在最终执行时由服务端使用 32 字节密码学随机数生成，不在页面中显示。
@@ -28,7 +27,7 @@
 ## 安装锁
 
 - 所有步骤成功后，安装器原子写入 `storage/app/private/installed.lock`。
-- 写锁后会删除私有安装令牌、清空 `.env` 中的 `PAYMENT_INSTALL_TOKEN` 并使安装 Cookie 失效。
+- 写锁后会删除服务器临时安装密钥和分步配置草稿，并使安装 Cookie 失效。
 - 锁存在时 `/install` 返回 404；普通 Web 请求、API 和支付回调不再经过安装流程。
 - `storage/app/private` 必须随应用持久化和备份。不要在发布时清空该目录。
 

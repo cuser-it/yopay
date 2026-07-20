@@ -20,75 +20,59 @@ final class InstallState
         return is_file($this->installedLockPath());
     }
 
-    public function hasAccessToken(): bool
+    public function installerSessionSecret(): string
     {
-        return $this->accessTokenHash() !== null;
-    }
+        $existingSecret = $this->readInstallerSessionSecret();
 
-    public function accessTokenHash(): ?string
-    {
-        $tokenFile = $this->tokenPath();
-
-        if (is_file($tokenFile)) {
-            $contents = @file_get_contents($tokenFile);
-
-            if ($contents === false) {
-                return null;
-            }
-
-            $hash = trim($contents);
-
-            return preg_match('/\A[a-f0-9]{64}\z/', $hash) === 1 ? $hash : null;
+        if ($existingSecret !== null) {
+            return $existingSecret;
         }
 
-        $environmentToken = env('PAYMENT_INSTALL_TOKEN');
-
-        if (! is_string($environmentToken) || trim($environmentToken) === '') {
-            return null;
-        }
-
-        return hash('sha256', trim($environmentToken));
-    }
-
-    public function verifyAccessToken(string $token): bool
-    {
-        $expectedHash = $this->accessTokenHash();
-
-        return $expectedHash !== null
-            && $token !== ''
-            && hash_equals($expectedHash, hash('sha256', $token));
-    }
-
-    public function generateAccessToken(bool $rotate = false): string
-    {
         if ($this->isInstalled()) {
             throw new RuntimeException('The application is already installed.');
         }
 
-        if ($this->hasAccessToken() && ! $rotate) {
-            throw new RuntimeException('An installation token already exists. Use --rotate to replace it.');
+        $this->ensurePrivateDirectory();
+        $lock = fopen($this->installerSecretMutexPath(), 'c+');
+
+        if ($lock === false) {
+            throw new RuntimeException('Unable to lock the private installer secret.');
         }
 
-        $token = $this->base64UrlEncode(random_bytes(36));
-        $this->writePrivateFile($this->tokenPath(), hash('sha256', $token).PHP_EOL);
+        try {
+            if (! flock($lock, LOCK_EX)) {
+                throw new RuntimeException('Unable to lock the private installer secret.');
+            }
 
-        return $token;
-    }
+            $existingSecret = $this->readInstallerSessionSecret();
 
-    public function removeAccessToken(): void
-    {
-        $path = $this->tokenPath();
+            if ($existingSecret !== null) {
+                return $existingSecret;
+            }
 
-        if (is_file($path) && ! unlink($path)) {
-            throw new RuntimeException('Unable to remove the installation token.');
+            if ($this->isInstalled()) {
+                throw new RuntimeException('The application is already installed.');
+            }
+
+            $secret = bin2hex(random_bytes(32));
+            $this->writePrivateFile($this->installerSecretPath(), $secret.PHP_EOL);
+
+            return $secret;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
         }
     }
 
     public function purgeTemporaryInstallerFiles(): void
     {
-        $this->removeAccessToken();
+        $secretPath = $this->installerSecretPath();
 
-        foreach (['install-session-*.json', 'install-rate-*.json'] as $pattern) {
+        if (is_file($secretPath) && ! @unlink($secretPath)) {
+            throw new RuntimeException('Unable to remove temporary installer state.');
+        }
+
+        foreach (['install-session-*.json', 'install-rate-*.json', 'install-token'] as $pattern) {
             foreach (glob($this->privateDirectory.DIRECTORY_SEPARATOR.$pattern) ?: [] as $path) {
                 if (is_file($path)) {
                     @unlink($path);
@@ -135,37 +119,6 @@ final class InstallState
         fclose($handle);
     }
 
-    public function tooManyAuthenticationAttempts(string $clientIdentifier): bool
-    {
-        $record = $this->readRateLimitRecord($clientIdentifier);
-
-        return $record['attempts'] >= 8 && $record['reset_at'] > time();
-    }
-
-    public function recordAuthenticationFailure(string $clientIdentifier): void
-    {
-        $record = $this->readRateLimitRecord($clientIdentifier);
-
-        if ($record['reset_at'] <= time()) {
-            $record = ['attempts' => 0, 'reset_at' => time() + 600];
-        }
-
-        $record['attempts']++;
-        $this->writePrivateFile(
-            $this->rateLimitPath($clientIdentifier),
-            json_encode($record, JSON_THROW_ON_ERROR),
-        );
-    }
-
-    public function clearAuthenticationFailures(string $clientIdentifier): void
-    {
-        $path = $this->rateLimitPath($clientIdentifier);
-
-        if (is_file($path)) {
-            unlink($path);
-        }
-    }
-
     public function privateDirectory(): string
     {
         return $this->privateDirectory;
@@ -181,35 +134,37 @@ final class InstallState
         return $this->privateDirectory.DIRECTORY_SEPARATOR.'installing.lock';
     }
 
-    private function tokenPath(): string
+    private function installerSecretPath(): string
     {
-        return $this->privateDirectory.DIRECTORY_SEPARATOR.'install-token';
+        return $this->privateDirectory.DIRECTORY_SEPARATOR.'installer-secret';
     }
 
-    private function rateLimitPath(string $clientIdentifier): string
+    private function installerSecretMutexPath(): string
     {
-        return $this->privateDirectory.DIRECTORY_SEPARATOR.'install-rate-'.hash('sha256', $clientIdentifier).'.json';
+        return $this->privateDirectory.DIRECTORY_SEPARATOR.'installer-secret.lock';
     }
 
-    /** @return array{attempts: int, reset_at: int} */
-    private function readRateLimitRecord(string $clientIdentifier): array
+    private function readInstallerSessionSecret(): ?string
     {
-        $path = $this->rateLimitPath($clientIdentifier);
+        $path = $this->installerSecretPath();
 
         if (! is_file($path)) {
-            return ['attempts' => 0, 'reset_at' => time() + 600];
+            return null;
         }
 
-        $record = json_decode((string) file_get_contents($path), true);
+        $contents = @file_get_contents($path);
 
-        if (! is_array($record)) {
-            return ['attempts' => 0, 'reset_at' => time() + 600];
+        if ($contents === false) {
+            throw new RuntimeException('Unable to read the private installer secret.');
         }
 
-        return [
-            'attempts' => max(0, (int) ($record['attempts'] ?? 0)),
-            'reset_at' => (int) ($record['reset_at'] ?? 0),
-        ];
+        $secret = trim($contents);
+
+        if (preg_match('/\A[a-f0-9]{64}\z/', $secret) !== 1) {
+            throw new RuntimeException('The private installer secret is invalid.');
+        }
+
+        return $secret;
     }
 
     private function writePrivateFile(string $path, string $contents): void
@@ -262,10 +217,5 @@ final class InstallState
         }
 
         @chmod($this->privateDirectory, 0700);
-    }
-
-    private function base64UrlEncode(string $value): string
-    {
-        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 }

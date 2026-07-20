@@ -37,15 +37,9 @@
    php artisan config:clear
    ```
 
-3. 在服务器终端生成私有安装令牌：
-
-   ```bash
-   php artisan install:token
-   ```
-
-4. 启动 Web 服务，通过最终 HTTPS 域名访问 `/install`；本地开发可以通过 `http://127.0.0.1:8000/install` 访问。
-5. 按向导依次完成环境检查、站点与 MySQL 连接测试、EasyPay V2、首个管理员、APP_KEY、迁移和初始化。
-6. 安装成功后，分别运行 Web、队列和调度进程：
+3. 启动 Web 服务，通过最终 HTTPS 域名访问 `/install`；本地开发可以通过 `http://127.0.0.1:8000/install` 访问。
+4. 按向导依次完成环境检查、站点与 MySQL 连接测试、EasyPay V2、首个管理员、APP_KEY、迁移和初始化。
+5. 安装成功后，分别运行 Web、队列和调度进程：
 
    ```bash
    php artisan serve
@@ -53,7 +47,7 @@
    php artisan schedule:work
    ```
 
-生产环境可使用每分钟执行一次的 `php artisan schedule:run` 代替常驻 `schedule:work`。安装入口的令牌、同源校验、空库保护、密钥暂存和永久锁说明见 `docs/installer-security.md`。
+生产环境可使用每分钟执行一次的 `php artisan schedule:run` 代替常驻 `schedule:work`。安装入口、同源校验、空库保护、密钥暂存和永久锁说明见 `docs/installer-security.md`。
 
 ## 必要配置
 
@@ -121,7 +115,7 @@ Scheduler 每分钟执行以下任务：
 
 ## 生产部署检查
 
-- 使用服务器终端生成安装令牌，不将令牌放入 URL、部署日志、截图或工单；安装完成后确认 `/install` 返回 404。
+- 首次访问 `/install` 会自动建立临时安装会话；安装完成后确认 `/install` 返回 404。
 - Web 根目录必须指向项目的 `public` 目录，公网安装前必须设置 `APP_DEBUG=false`，否则安装器拒绝继续。
 - 持久化并备份 `storage/app/private/installed.lock`，发布过程不得清空 `storage/app/private`。
 - 安装器只接受空数据库；迁移失败后恢复空库再重试，禁止通过删除个别表绕过保护。

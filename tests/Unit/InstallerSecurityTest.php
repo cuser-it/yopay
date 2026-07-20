@@ -31,27 +31,35 @@ final class InstallerSecurityTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_install_token_is_only_stored_as_a_hash_and_lock_prevents_rotation(): void
+    public function test_installer_secret_is_generated_privately_and_removed_after_cleanup(): void
     {
         $state = new InstallState($this->temporaryDirectory);
-        $token = $state->generateAccessToken();
+        $secret = $state->installerSessionSecret();
 
-        $this->assertTrue($state->verifyAccessToken($token));
-        $this->assertStringNotContainsString($token, (string) file_get_contents($this->temporaryDirectory.'/install-token'));
+        $this->assertMatchesRegularExpression('/\A[a-f0-9]{64}\z/', $secret);
+        $this->assertSame($secret, trim((string) file_get_contents($this->temporaryDirectory.'/installer-secret')));
+        $this->assertSame($secret, $state->installerSessionSecret());
 
+        $state->purgeTemporaryInstallerFiles();
+
+        $this->assertFileDoesNotExist($this->temporaryDirectory.'/installer-secret');
+    }
+
+    public function test_installed_lock_prevents_installer_session_recreation(): void
+    {
+        $state = new InstallState($this->temporaryDirectory);
         $state->writeInstalledLock(['gateway' => 'easypay_v2']);
 
         $this->assertTrue($state->isInstalled());
         $this->expectException(\RuntimeException::class);
-        $state->generateAccessToken(true);
+        $state->installerSessionSecret();
     }
 
     public function test_install_access_cookie_is_signed_and_tampering_is_rejected(): void
     {
         $state = new InstallState($this->temporaryDirectory);
-        $state->generateAccessToken();
         $service = new InstallAccessService($state);
-        $request = Request::create('https://pay.example.com/install/access', 'POST');
+        $request = Request::create('https://pay.example.com/install');
         $cookie = $service->issueCookie($request);
         $authenticatedRequest = Request::create('https://pay.example.com/install/requirements');
         $authenticatedRequest->cookies->set(InstallAccessService::COOKIE_NAME, $cookie->getValue());
@@ -65,7 +73,6 @@ final class InstallerSecurityTest extends TestCase
     public function test_install_draft_is_encrypted_at_rest(): void
     {
         $state = new InstallState($this->temporaryDirectory);
-        $state->generateAccessToken();
         $store = new InstallSessionStore($state);
         $sessionId = bin2hex(random_bytes(16));
         $draft = ['database' => ['password' => 'database-secret']];
@@ -75,6 +82,21 @@ final class InstallerSecurityTest extends TestCase
         $contents = (string) file_get_contents($this->temporaryDirectory.'/install-session-'.$sessionId.'.json');
         $this->assertStringNotContainsString('database-secret', $contents);
         $this->assertSame($draft, $store->read($sessionId));
+    }
+
+    public function test_install_entry_issues_session_cookie_and_skips_access_form(): void
+    {
+        $state = new InstallState($this->temporaryDirectory);
+        $this->app->instance(InstallState::class, $state);
+
+        $response = $this
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->get('http://127.0.0.1/install');
+
+        $response
+            ->assertRedirect(route('install.requirements'))
+            ->assertCookie(InstallAccessService::COOKIE_NAME);
+        $this->assertFileExists($this->temporaryDirectory.'/installer-secret');
     }
 
     public function test_environment_writer_updates_atomically_and_escapes_multiline_secrets(): void

@@ -12,7 +12,6 @@ Route::prefix('install')
     ->middleware(EnsureInstallerAvailable::class)
     ->group(function (): void {
         Route::get('/', [InstallController::class, 'index'])->name('index');
-        Route::post('/access', [InstallController::class, 'authenticate'])->name('authenticate');
 
         Route::middleware(EnsureInstallerAccess::class)->group(function (): void {
             Route::get('/requirements', [InstallController::class, 'requirements'])->name('requirements');

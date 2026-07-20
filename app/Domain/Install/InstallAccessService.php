@@ -16,15 +16,15 @@ final class InstallAccessService
     /** @return array{session_id: string, csrf: string, expires_at: int}|null */
     public function accessContext(Request $request): ?array
     {
-        $tokenHash = $this->state->accessTokenHash();
+        $secret = $this->state->installerSessionSecret();
         $cookie = $request->cookies->get(self::COOKIE_NAME);
 
-        if ($tokenHash === null || ! is_string($cookie)) {
+        if (! is_string($cookie)) {
             return null;
         }
 
         [$encodedPayload, $signature] = array_pad(explode('.', $cookie, 2), 2, '');
-        $expectedSignature = hash_hmac('sha256', $encodedPayload, hex2bin($tokenHash) ?: $tokenHash);
+        $expectedSignature = hash_hmac('sha256', $encodedPayload, hex2bin($secret) ?: $secret);
 
         if ($signature === '' || ! hash_equals($expectedSignature, $signature)) {
             return null;
@@ -52,18 +52,13 @@ final class InstallAccessService
 
     public function issueCookie(Request $request): Cookie
     {
-        $tokenHash = $this->state->accessTokenHash();
-
-        if ($tokenHash === null) {
-            throw new \RuntimeException('The installation token is unavailable.');
-        }
-
+        $secret = $this->state->installerSessionSecret();
         $payload = $this->base64UrlEncode(json_encode([
             'session_id' => bin2hex(random_bytes(16)),
             'csrf' => bin2hex(random_bytes(32)),
             'expires_at' => time() + 1800,
         ], JSON_THROW_ON_ERROR));
-        $signature = hash_hmac('sha256', $payload, hex2bin($tokenHash) ?: $tokenHash);
+        $signature = hash_hmac('sha256', $payload, hex2bin($secret) ?: $secret);
 
         return new Cookie(
             self::COOKIE_NAME,

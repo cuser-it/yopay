@@ -33,7 +33,7 @@
 
         <footer class="install-footer">
             <span>安装成功后，<code>/install</code> 将由私有锁永久关闭。</span>
-            <span>请勿通过截图、工单或聊天工具发送安装令牌与 RSA 私钥。</span>
+            <span>请勿通过截图、工单或聊天工具发送数据库密码与 RSA 私钥。</span>
         </footer>
     </main>
 </body>
